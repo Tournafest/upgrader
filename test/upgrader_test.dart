@@ -84,6 +84,49 @@ void main() {
     expect(upgrader.currentAppStoreVersion(), '1.2.3');
   }, skip: false);
 
+  testWidgets('test onNoUpdate', (WidgetTester tester) async {
+    final client = MockITunesSearchClient.setupMockClient();
+    final upgrader = Upgrader();
+    upgrader.platform = TargetPlatform.iOS;
+    upgrader.client = client;
+
+    expect(tester.takeException(), null);
+    await tester.pumpAndSettle();
+    try {
+      expect(upgrader.appName(), 'Upgrader');
+    } catch (e) {
+      expect(e, upgrader.notInitializedExceptionMessage);
+    }
+
+    upgrader.installPackageInfo(
+      packageInfo: PackageInfo(
+        appName: 'Upgrader',
+        packageName: 'com.larryaasen.upgrader',
+        version: '5.6.0',
+        buildNumber: '400',
+      ),
+    );
+
+    var called = false;
+
+    await upgrader.initialize();
+    await tester.pumpWidget(_MyWidget(onNoUpdate: () => called = true));
+
+    expect(find.text('Upgrader test'), findsOneWidget);
+    expect(find.text('Upgrading'), findsOneWidget);
+
+    // Pump the UI
+    await tester.pumpAndSettle();
+    // await tester.pumpAndSettle();
+
+    expect(upgrader.appName(), 'Upgrader');
+    expect(upgrader.currentAppStoreVersion(), '5.6');
+    expect(upgrader.currentInstalledVersion(), '5.6.0');
+    expect(upgrader.isUpdateAvailable(), false);
+
+    expect(called, true);
+  }, skip: false);
+
   testWidgets('test installAppStoreListingURL', (WidgetTester tester) async {
     final upgrader = Upgrader();
     upgrader.installAppStoreListingURL(
@@ -801,10 +844,12 @@ void verifyMessages(UpgraderMessages messages, String code) {
 }
 
 class _MyWidget extends StatelessWidget {
+  final VoidCallback? onNoUpdate;
   final dialogStyle;
   const _MyWidget({
     Key? key,
     this.dialogStyle = UpgradeDialogStyle.material,
+    this.onNoUpdate,
   }) : super(key: key);
 
   @override
@@ -818,6 +863,7 @@ class _MyWidget extends StatelessWidget {
         body: UpgradeAlert(
             debugLogging: true,
             dialogStyle: dialogStyle,
+            onNoUpdate: onNoUpdate,
             child: Column(
               children: <Widget>[Text('Upgrading')],
             )),
@@ -827,8 +873,11 @@ class _MyWidget extends StatelessWidget {
 }
 
 class _MyWidgetCard extends StatelessWidget {
+  final VoidCallback? onNoUpdate;
+
   const _MyWidgetCard({
     Key? key,
+    this.onNoUpdate,
   }) : super(key: key);
 
   @override
@@ -840,7 +889,12 @@ class _MyWidgetCard extends StatelessWidget {
           title: Text('Upgrader test'),
         ),
         body: Column(
-          children: <Widget>[UpgradeCard(debugLogging: true)],
+          children: <Widget>[
+            UpgradeCard(
+              debugLogging: true,
+              onNoUpdate: onNoUpdate,
+            )
+          ],
         ),
       ),
     );
